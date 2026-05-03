@@ -1,0 +1,780 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>pre.chiragcode.xyz</title>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0a0a0f;
+      --surface: #13131a;
+      --card: #1a1a24;
+      --border: #2a2a3a;
+      --accent: #7c3aed;
+      --accent2: #06b6d4;
+      --accent3: #f59e0b;
+      --text: #e8e8f0;
+      --muted: #6b6b80;
+      --danger: #ef4444;
+      --success: #10b981;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Syne', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ─── GRID NOISE BACKGROUND ─── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(124,58,237,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,58,237,0.04) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ─── LOCK SCREEN ─── */
+    #lock-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      background: var(--bg);
+    }
+
+    .lock-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 48px 40px;
+      width: 380px;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 0 80px rgba(124,58,237,0.12);
+    }
+
+    .lock-card::before {
+      content: '';
+      position: absolute;
+      top: -1px; left: -1px; right: -1px;
+      height: 2px;
+      background: linear-gradient(90deg, var(--accent), var(--accent2), var(--accent3));
+      border-radius: 20px 20px 0 0;
+    }
+
+    .lock-icon {
+      font-size: 48px;
+      margin-bottom: 20px;
+      display: block;
+      animation: float 3s ease-in-out infinite;
+    }
+
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-8px); }
+    }
+
+    .lock-title {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      margin-bottom: 6px;
+    }
+
+    .lock-sub {
+      font-size: 13px;
+      color: var(--muted);
+      font-family: 'Space Mono', monospace;
+      margin-bottom: 32px;
+    }
+
+    .pin-dots {
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .pin-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: transparent;
+      transition: all 0.2s ease;
+    }
+
+    .pin-dot.filled {
+      background: var(--accent);
+      border-color: var(--accent);
+      box-shadow: 0 0 10px rgba(124,58,237,0.6);
+    }
+
+    .pin-dot.error {
+      background: var(--danger);
+      border-color: var(--danger);
+    }
+
+    .pin-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      max-width: 240px;
+      margin: 0 auto 20px;
+    }
+
+    .pin-btn {
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--text);
+      font-size: 20px;
+      font-family: 'Space Mono', monospace;
+      font-weight: 700;
+      height: 58px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .pin-btn:hover {
+      background: var(--border);
+      border-color: var(--accent);
+      transform: scale(1.04);
+    }
+
+    .pin-btn:active { transform: scale(0.96); }
+
+    .pin-btn.zero { grid-column: 2; }
+
+    .pin-clear {
+      background: transparent;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 13px;
+      font-family: 'Space Mono', monospace;
+      height: 58px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .pin-clear:hover { border-color: var(--danger); color: var(--danger); }
+
+    .error-msg {
+      font-size: 12px;
+      font-family: 'Space Mono', monospace;
+      color: var(--danger);
+      height: 16px;
+      transition: opacity 0.3s;
+    }
+
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      20%, 60% { transform: translateX(-8px); }
+      40%, 80% { transform: translateX(8px); }
+    }
+
+    .shake { animation: shake 0.4s ease; }
+
+    /* ─── MAIN APP ─── */
+    #app {
+      display: none;
+      min-height: 100vh;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* ─── HEADER ─── */
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 18px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      background: rgba(10,10,15,0.85);
+    }
+
+    .logo {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+
+    .logo span {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .header-badge {
+      font-size: 11px;
+      font-family: 'Space Mono', monospace;
+      color: var(--success);
+      background: rgba(16,185,129,0.1);
+      border: 1px solid rgba(16,185,129,0.3);
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    /* ─── MAIN CONTENT ─── */
+    main {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: 48px 24px 80px;
+    }
+
+    .page-title {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      margin-bottom: 6px;
+    }
+
+    .page-sub {
+      font-size: 14px;
+      font-family: 'Space Mono', monospace;
+      color: var(--muted);
+      margin-bottom: 40px;
+    }
+
+    /* ─── UPLOAD ZONE ─── */
+    .upload-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 48px;
+    }
+
+    .upload-card {
+      background: var(--card);
+      border: 1.5px dashed var(--border);
+      border-radius: 16px;
+      padding: 32px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s ease;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .upload-card::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      transition: opacity 0.25s;
+      border-radius: 14px;
+    }
+
+    .upload-card.video::after { background: radial-gradient(circle at 50% 50%, rgba(124,58,237,0.08), transparent 70%); }
+    .upload-card.audio::after { background: radial-gradient(circle at 50% 50%, rgba(6,182,212,0.08), transparent 70%); }
+    .upload-card.photo::after { background: radial-gradient(circle at 50% 50%, rgba(245,158,11,0.08), transparent 70%); }
+
+    .upload-card:hover { transform: translateY(-4px); border-style: solid; }
+    .upload-card:hover::after { opacity: 1; }
+    .upload-card.video:hover { border-color: var(--accent); box-shadow: 0 8px 32px rgba(124,58,237,0.15); }
+    .upload-card.audio:hover { border-color: var(--accent2); box-shadow: 0 8px 32px rgba(6,182,212,0.15); }
+    .upload-card.photo:hover { border-color: var(--accent3); box-shadow: 0 8px 32px rgba(245,158,11,0.15); }
+
+    .upload-card.drag-over { transform: scale(1.03); border-style: solid; }
+    .upload-card.video.drag-over { border-color: var(--accent); }
+    .upload-card.audio.drag-over { border-color: var(--accent2); }
+    .upload-card.photo.drag-over { border-color: var(--accent3); }
+
+    .upload-icon { font-size: 38px; margin-bottom: 14px; display: block; }
+
+    .upload-label {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+
+    .upload-hint {
+      font-size: 11px;
+      font-family: 'Space Mono', monospace;
+      color: var(--muted);
+      margin-bottom: 20px;
+    }
+
+    .upload-btn {
+      display: inline-block;
+      padding: 10px 22px;
+      border-radius: 50px;
+      font-size: 13px;
+      font-weight: 700;
+      font-family: 'Syne', sans-serif;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      letter-spacing: 0.3px;
+    }
+
+    .upload-card.video .upload-btn { background: var(--accent); color: #fff; }
+    .upload-card.audio .upload-btn { background: var(--accent2); color: #000; }
+    .upload-card.photo .upload-btn { background: var(--accent3); color: #000; }
+
+    .upload-btn:hover { transform: scale(1.06); filter: brightness(1.15); }
+
+    /* ─── MEDIA GALLERY ─── */
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .count-badge {
+      font-size: 11px;
+      font-family: 'Space Mono', monospace;
+      padding: 3px 10px;
+      border-radius: 20px;
+    }
+
+    .video-badge { background: rgba(124,58,237,0.15); color: var(--accent); border: 1px solid rgba(124,58,237,0.25); }
+    .audio-badge { background: rgba(6,182,212,0.15); color: var(--accent2); border: 1px solid rgba(6,182,212,0.25); }
+    .photo-badge { background: rgba(245,158,11,0.15); color: var(--accent3); border: 1px solid rgba(245,158,11,0.25); }
+
+    .media-section { margin-bottom: 40px; }
+
+    .empty-state {
+      padding: 24px;
+      background: var(--surface);
+      border: 1px dashed var(--border);
+      border-radius: 12px;
+      text-align: center;
+      font-size: 13px;
+      font-family: 'Space Mono', monospace;
+      color: var(--muted);
+    }
+
+    .media-grid {
+      display: grid;
+      gap: 14px;
+    }
+
+    .media-grid.photos { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+    .media-grid.videos, .media-grid.audios { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+
+    .media-item {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .media-item:hover { transform: translateY(-2px); border-color: var(--muted); box-shadow: 0 6px 20px rgba(0,0,0,0.3); }
+
+    .media-item img {
+      width: 100%;
+      aspect-ratio: 1;
+      object-fit: cover;
+      display: block;
+    }
+
+    .media-item video {
+      width: 100%;
+      display: block;
+      max-height: 200px;
+      background: #000;
+    }
+
+    .media-item audio {
+      width: 100%;
+      display: block;
+      padding: 12px;
+    }
+
+    .media-info {
+      padding: 10px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .media-name {
+      font-size: 12px;
+      font-family: 'Space Mono', monospace;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 80%;
+    }
+
+    .media-delete {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      transition: all 0.15s;
+      flex-shrink: 0;
+    }
+
+    .media-delete:hover { color: var(--danger); background: rgba(239,68,68,0.1); }
+
+    /* ─── AUDIO CARD ─── */
+    .audio-card-inner {
+      padding: 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .audio-icon-big { font-size: 28px; }
+
+    .audio-card-inner audio { flex: 1; height: 36px; }
+
+    /* ─── DIVIDER ─── */
+    .divider {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 40px 0;
+    }
+
+    /* ─── TOAST ─── */
+    .toast {
+      position: fixed;
+      bottom: 28px;
+      right: 28px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px 20px;
+      font-size: 13px;
+      font-family: 'Space Mono', monospace;
+      color: var(--success);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      transform: translateY(80px);
+      opacity: 0;
+      transition: all 0.35s cubic-bezier(0.34,1.56,0.64,1);
+      z-index: 999;
+      pointer-events: none;
+    }
+
+    .toast.show { transform: translateY(0); opacity: 1; }
+
+    @media (max-width: 640px) {
+      .upload-row { grid-template-columns: 1fr; }
+      .lock-card { width: 90%; padding: 36px 24px; }
+      .page-title { font-size: 26px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══ LOCK SCREEN ═══ -->
+  <div id="lock-screen">
+    <div class="lock-card" id="lock-card">
+      <span class="lock-icon">🔐</span>
+      <div class="lock-title">Private Access</div>
+      <div class="lock-sub">pre.chiragcode.xyz</div>
+
+      <div class="pin-dots" id="pin-dots">
+        <div class="pin-dot" id="d0"></div>
+        <div class="pin-dot" id="d1"></div>
+        <div class="pin-dot" id="d2"></div>
+        <div class="pin-dot" id="d3"></div>
+        <div class="pin-dot" id="d4"></div>
+        <div class="pin-dot" id="d5"></div>
+      </div>
+
+      <div class="pin-grid">
+        <button class="pin-btn" onclick="enterPin('1')">1</button>
+        <button class="pin-btn" onclick="enterPin('2')">2</button>
+        <button class="pin-btn" onclick="enterPin('3')">3</button>
+        <button class="pin-btn" onclick="enterPin('4')">4</button>
+        <button class="pin-btn" onclick="enterPin('5')">5</button>
+        <button class="pin-btn" onclick="enterPin('6')">6</button>
+        <button class="pin-btn" onclick="enterPin('7')">7</button>
+        <button class="pin-btn" onclick="enterPin('8')">8</button>
+        <button class="pin-btn" onclick="enterPin('9')">9</button>
+        <button class="pin-clear" onclick="clearPin()">⌫</button>
+        <button class="pin-btn zero" onclick="enterPin('0')">0</button>
+        <button class="pin-clear" onclick="resetPin()">CLR</button>
+      </div>
+
+      <div class="error-msg" id="error-msg"></div>
+    </div>
+  </div>
+
+  <!-- ═══ MAIN APP ═══ -->
+  <div id="app">
+    <header>
+      <div class="logo">pre.<span>chiragcode</span>.xyz</div>
+      <div class="header-badge">✓ Authenticated</div>
+    </header>
+
+    <main>
+      <div class="page-title">Media Vault</div>
+      <div class="page-sub">// upload &amp; manage your files privately</div>
+
+      <!-- Upload Cards -->
+      <div class="upload-row">
+        <!-- VIDEO -->
+        <div class="upload-card video"
+          ondragover="dragOver(event,this)" ondragleave="dragLeave(event,this)"
+          ondrop="dropFile(event,'video',this)" onclick="document.getElementById('videoInput').click()">
+          <span class="upload-icon">🎬</span>
+          <div class="upload-label">Video</div>
+          <div class="upload-hint">MP4 · MOV · WEBM · AVI</div>
+          <button class="upload-btn">Upload Video</button>
+          <input type="file" id="videoInput" accept="video/*" multiple style="display:none"
+            onchange="handleFiles(this.files,'video')">
+        </div>
+
+        <!-- AUDIO -->
+        <div class="upload-card audio"
+          ondragover="dragOver(event,this)" ondragleave="dragLeave(event,this)"
+          ondrop="dropFile(event,'audio',this)" onclick="document.getElementById('audioInput').click()">
+          <span class="upload-icon">🎵</span>
+          <div class="upload-label">Audio</div>
+          <div class="upload-hint">MP3 · WAV · OGG · AAC</div>
+          <button class="upload-btn">Upload Audio</button>
+          <input type="file" id="audioInput" accept="audio/*" multiple style="display:none"
+            onchange="handleFiles(this.files,'audio')">
+        </div>
+
+        <!-- PHOTO -->
+        <div class="upload-card photo"
+          ondragover="dragOver(event,this)" ondragleave="dragLeave(event,this)"
+          ondrop="dropFile(event,'photo',this)" onclick="document.getElementById('photoInput').click()">
+          <span class="upload-icon">📷</span>
+          <div class="upload-label">Photo</div>
+          <div class="upload-hint">JPG · PNG · GIF · WEBP</div>
+          <button class="upload-btn">Upload Photo</button>
+          <input type="file" id="photoInput" accept="image/*" multiple style="display:none"
+            onchange="handleFiles(this.files,'photo')">
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <!-- Videos Gallery -->
+      <div class="media-section">
+        <div class="section-header">
+          <div class="section-title">🎬 Videos</div>
+          <div class="count-badge video-badge" id="video-count">0 files</div>
+        </div>
+        <div id="video-gallery">
+          <div class="empty-state">No videos uploaded yet. Drag & drop or click above.</div>
+        </div>
+      </div>
+
+      <!-- Audio Gallery -->
+      <div class="media-section">
+        <div class="section-header">
+          <div class="section-title">🎵 Audio</div>
+          <div class="count-badge audio-badge" id="audio-count">0 files</div>
+        </div>
+        <div id="audio-gallery">
+          <div class="empty-state">No audio uploaded yet. Drag & drop or click above.</div>
+        </div>
+      </div>
+
+      <!-- Photos Gallery -->
+      <div class="media-section">
+        <div class="section-header">
+          <div class="section-title">📷 Photos</div>
+          <div class="count-badge photo-badge" id="photo-count">0 files</div>
+        </div>
+        <div id="photo-gallery">
+          <div class="empty-state">No photos uploaded yet. Drag & drop or click above.</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Toast -->
+  <div class="toast" id="toast"></div>
+
+  <script>
+    /* ─── PIN LOGIC ─── */
+    const CORRECT = '219955';
+    let entered = '';
+
+    function enterPin(d) {
+      if (entered.length >= 6) return;
+      entered += d;
+      updateDots();
+      if (entered.length === 6) {
+        setTimeout(() => {
+          if (entered === CORRECT) {
+            unlock();
+          } else {
+            showError('Incorrect PIN. Try again.');
+            document.getElementById('lock-card').classList.add('shake');
+            setTimeout(() => {
+              document.getElementById('lock-card').classList.remove('shake');
+              resetPin();
+            }, 500);
+          }
+        }, 120);
+      }
+    }
+
+    function clearPin() {
+      entered = entered.slice(0, -1);
+      updateDots();
+      clearError();
+    }
+
+    function resetPin() {
+      entered = '';
+      updateDots();
+      clearError();
+    }
+
+    function updateDots() {
+      for (let i = 0; i < 6; i++) {
+        const d = document.getElementById('d' + i);
+        d.classList.toggle('filled', i < entered.length);
+        d.classList.remove('error');
+      }
+    }
+
+    function showError(msg) {
+      const e = document.getElementById('error-msg');
+      e.textContent = msg;
+      for (let i = 0; i < 6; i++) document.getElementById('d' + i).classList.add('error');
+    }
+
+    function clearError() { document.getElementById('error-msg').textContent = ''; }
+
+    function unlock() {
+      document.getElementById('lock-screen').style.opacity = '0';
+      document.getElementById('lock-screen').style.transition = 'opacity 0.5s ease';
+      setTimeout(() => {
+        document.getElementById('lock-screen').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        document.getElementById('app').style.animation = 'fadeIn 0.5s ease';
+      }, 450);
+    }
+
+    /* ─── MEDIA LOGIC ─── */
+    const store = { video: [], audio: [], photo: [] };
+
+    function handleFiles(files, type) {
+      Array.from(files).forEach(file => addMedia(file, type));
+    }
+
+    function addMedia(file, type) {
+      const url = URL.createObjectURL(file);
+      const id = Date.now() + Math.random();
+      store[type].push({ id, url, name: file.name });
+      renderGallery(type);
+      showToast(`✓ ${file.name} added`);
+    }
+
+    function removeMedia(type, id) {
+      store[type] = store[type].filter(m => m.id !== id);
+      renderGallery(type);
+    }
+
+    function renderGallery(type) {
+      const galleryId = type + '-gallery';
+      const countId = type + '-count';
+      const gallery = document.getElementById(galleryId);
+      const count = document.getElementById(countId);
+      const items = store[type];
+
+      count.textContent = items.length + ' file' + (items.length !== 1 ? 's' : '');
+
+      if (items.length === 0) {
+        gallery.innerHTML = `<div class="empty-state">No ${type} uploaded yet. Drag & drop or click above.</div>`;
+        return;
+      }
+
+      if (type === 'photo') {
+        gallery.innerHTML = `<div class="media-grid photos">` + items.map(m => `
+          <div class="media-item">
+            <img src="${m.url}" alt="${m.name}" loading="lazy"/>
+            <div class="media-info">
+              <span class="media-name">${m.name}</span>
+              <button class="media-delete" onclick="removeMedia('photo', ${m.id})" title="Remove">✕</button>
+            </div>
+          </div>`).join('') + `</div>`;
+      } else if (type === 'video') {
+        gallery.innerHTML = `<div class="media-grid videos">` + items.map(m => `
+          <div class="media-item">
+            <video controls src="${m.url}"></video>
+            <div class="media-info">
+              <span class="media-name">${m.name}</span>
+              <button class="media-delete" onclick="removeMedia('video', ${m.id})" title="Remove">✕</button>
+            </div>
+          </div>`).join('') + `</div>`;
+      } else {
+        gallery.innerHTML = `<div class="media-grid audios">` + items.map(m => `
+          <div class="media-item">
+            <div class="audio-card-inner">
+              <span class="audio-icon-big">🎵</span>
+              <audio controls src="${m.url}"></audio>
+            </div>
+            <div class="media-info">
+              <span class="media-name">${m.name}</span>
+              <button class="media-delete" onclick="removeMedia('audio', ${m.id})" title="Remove">✕</button>
+            </div>
+          </div>`).join('') + `</div>`;
+      }
+    }
+
+    /* ─── DRAG & DROP ─── */
+    function dragOver(e, el) {
+      e.preventDefault();
+      el.classList.add('drag-over');
+    }
+
+    function dragLeave(e, el) {
+      el.classList.remove('drag-over');
+    }
+
+    function dropFile(e, type, el) {
+      e.preventDefault();
+      el.classList.remove('drag-over');
+      handleFiles(e.dataTransfer.files, type);
+    }
+
+    /* ─── TOAST ─── */
+    let toastTimer;
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
+    }
+
+    /* ─── FADE IN ─── */
+    const style = document.createElement('style');
+    style.textContent = '@keyframes fadeIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }';
+    document.head.appendChild(style);
+  </script>
+</body>
+</html>
