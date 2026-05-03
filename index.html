@@ -616,7 +616,9 @@
   <div class="toast" id="toast"></div>
 
   <script>
-    /* ─── PIN LOGIC ─── */
+    /* ═══════════════════════════════════════════
+       PIN LOGIC
+    ═══════════════════════════════════════════ */
     const CORRECT = '219955';
     let entered = '';
 
@@ -640,17 +642,8 @@
       }
     }
 
-    function clearPin() {
-      entered = entered.slice(0, -1);
-      updateDots();
-      clearError();
-    }
-
-    function resetPin() {
-      entered = '';
-      updateDots();
-      clearError();
-    }
+    function clearPin() { entered = entered.slice(0, -1); updateDots(); clearError(); }
+    function resetPin() { entered = ''; updateDots(); clearError(); }
 
     function updateDots() {
       for (let i = 0; i < 6; i++) {
@@ -661,49 +654,128 @@
     }
 
     function showError(msg) {
-      const e = document.getElementById('error-msg');
-      e.textContent = msg;
+      document.getElementById('error-msg').textContent = msg;
       for (let i = 0; i < 6; i++) document.getElementById('d' + i).classList.add('error');
     }
 
     function clearError() { document.getElementById('error-msg').textContent = ''; }
 
     function unlock() {
-      document.getElementById('lock-screen').style.opacity = '0';
-      document.getElementById('lock-screen').style.transition = 'opacity 0.5s ease';
+      const ls = document.getElementById('lock-screen');
+      ls.style.transition = 'opacity 0.5s ease';
+      ls.style.opacity = '0';
       setTimeout(() => {
-        document.getElementById('lock-screen').style.display = 'none';
-        document.getElementById('app').style.display = 'block';
-        document.getElementById('app').style.animation = 'fadeIn 0.5s ease';
+        ls.style.display = 'none';
+        const app = document.getElementById('app');
+        app.style.display = 'block';
+        app.style.animation = 'fadeIn 0.5s ease';
+        loadAllFromDB();
       }, 450);
     }
 
-    /* ─── MEDIA LOGIC ─── */
+    /* ═══════════════════════════════════════════
+       INDEXEDDB SETUP  —  files survive refresh
+    ═══════════════════════════════════════════ */
+    const DB_NAME    = 'MediaVaultDB';
+    const DB_VERSION = 1;
+    const STORE_NAME = 'media';
+    let db = null;
+
+    function openDB() {
+      return new Promise((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = e => {
+          const d = e.target.result;
+          if (!d.objectStoreNames.contains(STORE_NAME)) {
+            d.createObjectStore(STORE_NAME, { keyPath: 'id' });
+          }
+        };
+        req.onsuccess = e => { db = e.target.result; resolve(db); };
+        req.onerror   = e => reject(e.target.error);
+      });
+    }
+
+    function dbSave(record) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).put(record);
+        tx.oncomplete = resolve;
+        tx.onerror    = e => reject(e.target.error);
+      });
+    }
+
+    function dbDelete(id) {
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(STORE_NAME, 'readwrite');
+        tx.objectStore(STORE_NAME).delete(id);
+        tx.oncomplete = resolve;
+        tx.onerror    = e => reject(e.target.error);
+      });
+    }
+
+    function dbGetAll() {
+      return new Promise((resolve, reject) => {
+        const tx  = db.transaction(STORE_NAME, 'readonly');
+        const req = tx.objectStore(STORE_NAME).getAll();
+        req.onsuccess = e => resolve(e.target.result);
+        req.onerror   = e => reject(e.target.error);
+      });
+    }
+
+    /* ═══════════════════════════════════════════
+       IN-MEMORY STORE (urls are blob: URLs from DB blobs)
+    ═══════════════════════════════════════════ */
     const store = { video: [], audio: [], photo: [] };
 
+    async function loadAllFromDB() {
+      await openDB();
+      const records = await dbGetAll();
+      store.video = []; store.audio = []; store.photo = [];
+      records.forEach(r => {
+        const url = URL.createObjectURL(r.blob);
+        store[r.type].push({ id: r.id, name: r.name, url });
+      });
+      renderGallery('video');
+      renderGallery('audio');
+      renderGallery('photo');
+    }
+
+    /* ═══════════════════════════════════════════
+       UPLOAD HANDLERS
+    ═══════════════════════════════════════════ */
     function handleFiles(files, type) {
       Array.from(files).forEach(file => addMedia(file, type));
     }
 
-    function addMedia(file, type) {
+    async function addMedia(file, type) {
+      if (!db) await openDB();
+      const id  = Date.now() + '_' + Math.random().toString(36).slice(2);
       const url = URL.createObjectURL(file);
-      const id = Date.now() + Math.random();
-      store[type].push({ id, url, name: file.name });
+
+      // Save the actual file blob into IndexedDB
+      await dbSave({ id, type, name: file.name, blob: file });
+
+      store[type].push({ id, name: file.name, url });
       renderGallery(type);
-      showToast(`✓ ${file.name} added`);
+      showToast(`✓ ${file.name} saved`);
     }
 
-    function removeMedia(type, id) {
+    async function removeMedia(type, id) {
+      await dbDelete(id);
+      const item = store[type].find(m => m.id === id);
+      if (item) URL.revokeObjectURL(item.url);
       store[type] = store[type].filter(m => m.id !== id);
       renderGallery(type);
+      showToast('🗑 File removed');
     }
 
+    /* ═══════════════════════════════════════════
+       RENDER GALLERIES
+    ═══════════════════════════════════════════ */
     function renderGallery(type) {
-      const galleryId = type + '-gallery';
-      const countId = type + '-count';
-      const gallery = document.getElementById(galleryId);
-      const count = document.getElementById(countId);
-      const items = store[type];
+      const gallery = document.getElementById(type + '-gallery');
+      const count   = document.getElementById(type + '-count');
+      const items   = store[type];
 
       count.textContent = items.length + ' file' + (items.length !== 1 ? 's' : '');
 
@@ -712,24 +784,28 @@
         return;
       }
 
+      const escape = s => s.replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
       if (type === 'photo') {
         gallery.innerHTML = `<div class="media-grid photos">` + items.map(m => `
           <div class="media-item">
-            <img src="${m.url}" alt="${m.name}" loading="lazy"/>
+            <img src="${m.url}" alt="${escape(m.name)}" loading="lazy"/>
             <div class="media-info">
-              <span class="media-name">${m.name}</span>
-              <button class="media-delete" onclick="removeMedia('photo', ${m.id})" title="Remove">✕</button>
+              <span class="media-name">${escape(m.name)}</span>
+              <button class="media-delete" onclick="removeMedia('photo','${m.id}')" title="Remove">✕</button>
             </div>
           </div>`).join('') + `</div>`;
+
       } else if (type === 'video') {
         gallery.innerHTML = `<div class="media-grid videos">` + items.map(m => `
           <div class="media-item">
             <video controls src="${m.url}"></video>
             <div class="media-info">
-              <span class="media-name">${m.name}</span>
-              <button class="media-delete" onclick="removeMedia('video', ${m.id})" title="Remove">✕</button>
+              <span class="media-name">${escape(m.name)}</span>
+              <button class="media-delete" onclick="removeMedia('video','${m.id}')" title="Remove">✕</button>
             </div>
           </div>`).join('') + `</div>`;
+
       } else {
         gallery.innerHTML = `<div class="media-grid audios">` + items.map(m => `
           <div class="media-item">
@@ -738,30 +814,27 @@
               <audio controls src="${m.url}"></audio>
             </div>
             <div class="media-info">
-              <span class="media-name">${m.name}</span>
-              <button class="media-delete" onclick="removeMedia('audio', ${m.id})" title="Remove">✕</button>
+              <span class="media-name">${escape(m.name)}</span>
+              <button class="media-delete" onclick="removeMedia('audio','${m.id}')" title="Remove">✕</button>
             </div>
           </div>`).join('') + `</div>`;
       }
     }
 
-    /* ─── DRAG & DROP ─── */
-    function dragOver(e, el) {
-      e.preventDefault();
-      el.classList.add('drag-over');
-    }
-
-    function dragLeave(e, el) {
-      el.classList.remove('drag-over');
-    }
-
+    /* ═══════════════════════════════════════════
+       DRAG & DROP
+    ═══════════════════════════════════════════ */
+    function dragOver(e, el)  { e.preventDefault(); el.classList.add('drag-over'); }
+    function dragLeave(e, el) { el.classList.remove('drag-over'); }
     function dropFile(e, type, el) {
       e.preventDefault();
       el.classList.remove('drag-over');
       handleFiles(e.dataTransfer.files, type);
     }
 
-    /* ─── TOAST ─── */
+    /* ═══════════════════════════════════════════
+       TOAST
+    ═══════════════════════════════════════════ */
     let toastTimer;
     function showToast(msg) {
       const t = document.getElementById('toast');
@@ -771,10 +844,13 @@
       toastTimer = setTimeout(() => t.classList.remove('show'), 2500);
     }
 
-    /* ─── FADE IN ─── */
+    /* ─── FADE IN KEYFRAME ─── */
     const style = document.createElement('style');
     style.textContent = '@keyframes fadeIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }';
     document.head.appendChild(style);
+
+    /* ─── Pre-open DB silently on page load ─── */
+    openDB();
   </script>
 </body>
 </html>
